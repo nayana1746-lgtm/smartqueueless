@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}
+Admin Dashboard | SmartQueueLess
+{% endblock %}
+
+{% block content %}
+
+<section class="dashboard">
+
+    <div class="dashboard-header">
+
+        <div>
+
+            <span class="section-label">
+                ADMIN CONTROL CENTER
+            </span>
+
+            <h1>
+                Queue Management
+            </h1>
+
+            <p>
+                Monitor services, tokens and queue activity.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="admin-stats">
+
+        <div class="admin-stat">
+            <span>Waiting</span>
+            <strong>{{ waiting_count }}</strong>
+        </div>
+
+        <div class="admin-stat">
+            <span>Serving</span>
+            <strong>{{ serving_count }}</strong>
+        </div>
+
+        <div class="admin-stat">
+            <span>Completed</span>
+            <strong>{{ completed_count }}</strong>
+        </div>
+
+    </div>
+
+
+    <div class="dashboard-section">
+
+        <h2>
+            Create Service
+        </h2>
+
+        <form
+            method="POST"
+            action="{{ url_for('create_service') }}"
+            class="service-form"
+        >
+
+            <input
+                type="text"
+                name="name"
+                placeholder="Service name"
+                required
+            >
+
+            <input
+                type="text"
+                name="location"
+                placeholder="Location"
+                required
+            >
+
+            <input
+                type="text"
+                name="prefix"
+                placeholder="Prefix"
+                maxlength="5"
+                required
+            >
+
+            <input
+                type="number"
+                name="average_service_time"
+                placeholder="Average minutes"
+                min="1"
+                value="5"
+                required
+            >
+
+            <button
+                type="submit"
+                class="primary-button"
+            >
+                Create Service
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <div class="dashboard-section">
+
+        <h2>
+            Queue Tokens
+        </h2>
+
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Token</th>
+                        <th>User</th>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for token in tokens %}
+
+                    <tr>
+
+                        <td>
+                            <strong>
+                                {{ token.token_code }}
+                            </strong>
+                        </td>
+
+                        <td>
+                            {{ token.user.name }}
+                        </td>
+
+                        <td>
+                            {{ token.service.name }}
+                        </td>
+
+                        <td>
+                            <span class="status {{ token.status }}">
+                                {{ token.status|capitalize }}
+                            </span>
+                        </td>
+
+                        <td>
+
+                            {% if token.status == "waiting" %}
+
+                                {% if token.id in next_token_ids %}
+
+                                <!-- Active Serve button for the next person in line -->
+                                <form
+                                    method="POST"
+                                    action="{{ url_for('serve_token', token_id=token.id) }}"
+                                    class="inline-form"
+                                >
+                                    <button class="small-button">
+                                        Serve
+                                    </button>
+                                </form>
+
+                                {% else %}
+
+                                <!-- Disabled button for users waiting further behind -->
+                                <button class="small-button disabled-button" disabled title="Serve earlier tokens first">
+                                    In Line
+                                </button>
+
+                                {% endif %}
+
+                            {% elif token.status == "serving" %}
+
+                            <form
+                                method="POST"
+                                action="{{ url_for('complete_token', token_id=token.id) }}"
+                                class="inline-form"
+                            >
+                                <button class="small-button">
+                                    Complete
+                                </button>
+                            </form>
+
+                            {% else %}
+
+                            <span class="completed-text">
+                                Finished
+                            </span>
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    {% else %}
+
+                    <tr>
+
+                        <td colspan="5">
+                            No tokens have been generated yet.
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- REAL-TIME SOCKET.IO & TEXT-TO-SPEECH ANNOUNCEMENT SCRIPT -->
+<!-- ============================================================ -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+    const socket = io();
+
+    // Listen for queue updates in real-time
+    socket.on('queue_updated', function(data) {
+        if (data && data.status === 'serving' && data.token_code) {
+            // Read out token characters distinctly (e.g. 'Token A 1 0 1 is now being served')
+            const spokenCode = data.token_code.split('').join(' ');
+            const announcement = new SpeechSynthesisUtterance(
+                `Token ${spokenCode} is now being served.`
+            );
+            announcement.rate = 0.9; // Pace for clear listening
+            announcement.pitch = 1.0;
+            window.speechSynthesis.speak(announcement);
+        }
+
+        // Refresh table dynamically after update
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    });
+</script>
+
+{% endblock %}

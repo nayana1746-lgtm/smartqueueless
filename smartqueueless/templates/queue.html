@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}
+Queue Status | SmartQueueLess
+{% endblock %}
+
+{% block content %}
+
+<section class="queue-page">
+
+    <div class="queue-status-card">
+
+        <span class="section-label">
+            LIVE QUEUE STATUS
+        </span>
+
+        <h1>
+            Your Digital Token
+        </h1>
+
+
+        <div class="big-token">
+            {{ token.token_code }}
+        </div>
+
+
+        <h2>
+            {{ token.service.name }}
+        </h2>
+
+        <p>
+            {{ token.service.location }}
+        </p>
+
+
+        <div class="queue-stats">
+
+            <div class="queue-stat">
+
+                <span>
+                    People Ahead
+                </span>
+
+                <strong>
+                    {{ people_ahead }}
+                </strong>
+
+            </div>
+
+
+            <div class="queue-stat">
+
+                <span>
+                    Estimated Wait
+                </span>
+
+                <strong>
+                    {{ waiting_time }} min
+                </strong>
+
+            </div>
+
+
+            <div class="queue-stat">
+
+                <span>
+                    Status
+                </span>
+
+                <strong>
+                    {{ token.status|capitalize }}
+                </strong>
+
+            </div>
+
+        </div>
+
+
+        {% if token.status == "waiting" %}
+
+        <div class="prediction-box">
+
+            <div>
+                <strong>
+                    AI Waiting-Time Prediction
+                </strong>
+
+                <p>
+                    Estimated waiting time is calculated using
+                    current queue data and available service-time
+                    history.
+                </p>
+            </div>
+
+            <div class="prediction-time">
+                {{ waiting_time }} min
+            </div>
+
+        </div>
+
+        {% elif token.status == "serving" %}
+
+        <div class="serving-box">
+            🎯 Your token is currently being served.
+        </div>
+
+        {% else %}
+
+        <div class="completed-box">
+            Your service has been completed.
+        </div>
+
+        {% endif %}
+
+
+        <div class="queue-actions">
+
+            <a
+                href="{{ url_for('dashboard') }}"
+                class="secondary-button"
+            >
+                Back to Dashboard
+            </a>
+
+        </div>
+
+    </div>
+
+</section>
+
+<!-- ============================================================ -->
+<!-- REAL-TIME USER NOTIFICATION & AUDIO ALERT SCRIPT -->
+<!-- ============================================================ -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+    const socket = io();
+    const currentTokenId = parseInt("{{ token.id }}", 10);
+    const tokenCodeStr = "{{ token.token_code }}";
+
+    // Request desktop push notification permissions on page load
+    if ("Notification" in window && Notification.permission !== "granted") {
+        Notification.requestPermission();
+    }
+
+    socket.on('queue_updated', function(data) {
+        // Refresh or notify if the update relates to this token or general queue
+        if (!data || !data.token_id || data.token_id === currentTokenId) {
+            
+            // Check if user's token status changed to serving
+            if (data && data.status === 'serving' && data.token_id === currentTokenId) {
+                
+                // 1. Audio Voice Callout for User
+                try {
+                    const spokenCode = tokenCodeStr.split('').join(' ');
+                    const speech = new SpeechSynthesisUtterance(
+                        `Your token ${spokenCode} is now being called!`
+                    );
+                    speech.rate = 0.9;
+                    speech.pitch = 1.0;
+                    window.speechSynthesis.speak(speech);
+                } catch(e) {
+                    console.log('Speech synthesis error:', e);
+                }
+
+                // 2. Desktop Push Notification
+                if ("Notification" in window && Notification.permission === "granted") {
+                    new Notification("It's Your Turn!", {
+                        body: `Token ${tokenCodeStr} is now being served. Please proceed to the counter.`,
+                        icon: "/static/favicon.ico"
+                    });
+                }
+            }
+
+            // Refresh page to show updated stats
+            setTimeout(function() {
+                window.location.reload();
+            }, 800);
+        }
+    });
+</script>
+
+{% endblock %}

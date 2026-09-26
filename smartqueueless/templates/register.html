@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}
+Create Account | SmartQueueLess
+{% endblock %}
+
+{% block content %}
+
+<div class="auth-page">
+
+    <div class="auth-card">
+
+        <div class="auth-header">
+
+            <span class="section-label">
+                SMARTQUEUELESS
+            </span>
+
+            <h1>
+                Create your account
+            </h1>
+
+            <p>
+                Join digital queues without unnecessary waiting.
+            </p>
+
+        </div>
+
+
+        <form method="POST" class="auth-form">
+
+            <label>
+                Full Name
+            </label>
+
+            <input
+                type="text"
+                name="name"
+                placeholder="Enter your name"
+                required
+            >
+
+
+            <label>
+                Email
+            </label>
+
+            <input
+                type="email"
+                name="email"
+                placeholder="Enter your email"
+                required
+            >
+
+
+            <label>
+                Password
+            </label>
+
+            <input
+                type="password"
+                name="password"
+                placeholder="Minimum 6 characters"
+                minlength="6"
+                required
+            >
+
+
+            <button
+                type="submit"
+                class="primary-button full-width"
+            >
+                Create Account
+            </button>
+
+        </form>
+
+
+        <p class="auth-footer">
+            Already have an account?
+            <a href="{{ url_for('login') }}">
+                Login
+            </a>
+        </p>
+
+    </div>
+
+</div>
+
+{% endblock %}
