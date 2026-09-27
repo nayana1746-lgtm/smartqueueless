@@ -1,5 +1,6 @@
 from datetime import datetime
 from functools import wraps
+import os
 
 import numpy as np
 from flask import Flask, flash, redirect, render_template, request, url_for
@@ -18,7 +19,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 
-app.config["SECRET_KEY"] = "smartqueueless-production-key"
+app.config["SECRET_KEY"] = os.environ.get(
+    "SECRET_KEY",
+    "dev-secret-key-change-this"
+)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///smartqueueless.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -100,72 +104,135 @@ def load_user(user_id):
 # WAITING-TIME PREDICTION
 # ============================================================
 
-def predict_waiting_time(service_id):
+def predict_waiting_time(service_id, token_id=None):
+    """
+    Predict waiting time using:
+    1. Number of people ahead
+    2. Currently serving token
+    3. Historical completed service durations
+    4. Current time of day
+
+    Falls back to the service's average time when there
+    is not enough historical data for ML.
+    """
+
     service = db.session.get(Service, service_id)
 
     if not service:
         return 0
 
-    waiting_tokens = Token.query.filter_by(
-        service_id=service_id,
-        status="waiting"
-    ).count()
+    # Find the user's position in the queue
+    if token_id:
+        current_token = db.session.get(Token, token_id)
 
-    active_tokens = Token.query.filter_by(
+        if current_token:
+            people_ahead = Token.query.filter(
+                Token.service_id == service_id,
+                Token.status == "waiting",
+                Token.token_number < current_token.token_number
+            ).count()
+        else:
+            people_ahead = Token.query.filter_by(
+                service_id=service_id,
+                status="waiting"
+            ).count()
+    else:
+        people_ahead = Token.query.filter_by(
+            service_id=service_id,
+            status="waiting"
+        ).count()
+
+    # Check whether somebody is currently being served
+    active_token = Token.query.filter_by(
         service_id=service_id,
         status="serving"
-    ).count()
+    ).first()
+
+    active_count = 1 if active_token else 0
+
+    # ---------------------------------------------------------
+    # Get historical completed tokens
+    # ---------------------------------------------------------
 
     historical_tokens = Token.query.filter(
         Token.service_id == service_id,
-        Token.status == "completed"
-    ).order_by(Token.completed_at.desc()).limit(100).all()
+        Token.status == "completed",
+        Token.called_at.isnot(None),
+        Token.completed_at.isnot(None)
+    ).order_by(
+        Token.completed_at.desc()
+    ).limit(100).all()
 
-    # If enough historical data exists, use ML.
-    if len(historical_tokens) >= 5:
+    historical_data = []
 
+    for token in historical_tokens:
+        duration = (
+            token.completed_at - token.called_at
+        ).total_seconds() / 60
+
+        if duration > 0:
+            historical_data.append({
+                "token_number": token.token_number,
+                "hour": token.called_at.hour,
+                "duration": duration
+            })
+
+    # ---------------------------------------------------------
+    # Machine Learning prediction
+    # ---------------------------------------------------------
+
+    if len(historical_data) >= 5:
         X = []
         y = []
 
-        for token in historical_tokens:
-            if token.called_at and token.completed_at:
-                duration = (
-                    token.completed_at - token.called_at
-                ).total_seconds() / 60
+        for item in historical_data:
+            X.append([
+                item["token_number"],
+                item["hour"]
+            ])
+            y.append(item["duration"])
 
-                if duration > 0:
-                    X.append([
-                        token.token_number,
-                        token.created_at.hour
-                    ])
-                    y.append(duration)
+        model = LinearRegression()
 
-        if len(X) >= 5:
-            model = LinearRegression()
-            model.fit(np.array(X), np.array(y))
+        model.fit(
+            np.array(X),
+            np.array(y)
+        )
 
-            predicted_service_time = float(
-                model.predict(
-                    np.array([[waiting_tokens + 1, datetime.now().hour]])
-                )[0]
-            )
+        current_hour = datetime.now().hour
 
-            predicted_service_time = max(
-                2.0,
-                min(predicted_service_time, 60.0)
-            )
+        predicted_service_time = float(
+            model.predict(
+                np.array([
+                    [
+                        people_ahead + 1,
+                        current_hour
+                    ]
+                ])
+            )[0]
+        )
 
-            return round(
-                (waiting_tokens + active_tokens)
-                * predicted_service_time
-            )
+        # Keep prediction within a practical range
+        predicted_service_time = max(
+            2.0,
+            min(predicted_service_time, 60.0)
+        )
 
-    # Initial prediction before enough historical data exists.
-    average_time = service.average_service_time or 5
+    else:
+        # Not enough historical data yet
+        predicted_service_time = (
+            service.average_service_time or 5
+        )
 
-    return round(
-        (waiting_tokens + active_tokens) * average_time
-    )
+    # ---------------------------------------------------------
+    # Calculate total waiting time
+    # ---------------------------------------------------------
+
+    waiting_time = (
+        people_ahead + active_count
+    ) * predicted_service_time
+
+    return max(0, round(waiting_time))
 
 
 # ============================================================
@@ -219,9 +286,9 @@ def register():
             flash("All fields are required.", "error")
             return redirect(url_for("register"))
 
-        if len(password) < 6:
+        if len(password) < 8:
             flash(
-                "Password must contain at least 6 characters.",
+                "Password must contain at least 8 characters.",
                 "error"
             )
             return redirect(url_for("register"))
@@ -408,35 +475,48 @@ def queue_status(token_id):
         flash("Token not found.", "error")
         return redirect(url_for("dashboard"))
 
+    # Only token owner or admin can view the queue
     if token.user_id != current_user.id and current_user.role != "admin":
         flash("Unauthorized access.", "error")
         return redirect(url_for("dashboard"))
 
+    # People waiting before this token
     people_ahead = Token.query.filter(
         Token.service_id == token.service_id,
         Token.status == "waiting",
         Token.token_number < token.token_number
     ).count()
 
-    if token.status == "serving":
-        people_ahead = 0
+    # Find currently serving token
+    current_serving = Token.query.filter_by(
+        service_id=token.service_id,
+        status="serving"
+    ).order_by(
+        Token.called_at.asc()
+    ).first()
 
-    waiting_time = predict_waiting_time(
-        token.service_id
-    )
-
+    # Queue position
     if token.status == "waiting":
+        queue_position = people_ahead + 1
+    else:
+        queue_position = 0
 
-        waiting_time = round(
-            people_ahead *
-            token.service.average_service_time
+    # Waiting-time prediction
+    if token.status == "waiting":
+        waiting_time = predict_waiting_time(
+            token.service_id,
+            token.id
         )
+    else:
+        waiting_time = 0
 
     return render_template(
         "queue.html",
         token=token,
         people_ahead=people_ahead,
-        waiting_time=waiting_time
+        queue_position=queue_position,
+        waiting_time=waiting_time,
+        current_serving=current_serving
     )
 
 
@@ -450,9 +530,21 @@ def admin_dashboard():
 
     services = Service.query.all()
 
+    # FIFO Update: Fetch tokens ordered by oldest created first (asc)
     tokens = Token.query.order_by(
-        Token.created_at.desc()
+        Token.created_at.asc()
     ).limit(100).all()
+
+    # Find the next token ID in line for each service
+    next_token_ids = []
+    for service in services:
+        first_waiting = Token.query.filter_by(
+            service_id=service.id,
+            status="waiting"
+        ).order_by(Token.created_at.asc()).first()
+        
+        if first_waiting:
+            next_token_ids.append(first_waiting.id)
 
     waiting_count = Token.query.filter_by(
         status="waiting"
@@ -470,6 +562,7 @@ def admin_dashboard():
         "admin.html",
         services=services,
         tokens=tokens,
+        next_token_ids=next_token_ids,
         waiting_count=waiting_count,
         serving_count=serving_count,
         completed_count=completed_count
@@ -538,6 +631,19 @@ def serve_token(token_id):
         flash("Token not found.", "error")
         return redirect(url_for("admin_dashboard"))
 
+    # FIFO Check: Verify target token is the oldest waiting token for this service
+    first_in_line = Token.query.filter_by(
+        service_id=token.service_id,
+        status="waiting"
+    ).order_by(Token.created_at.asc()).first()
+
+    if first_in_line and first_in_line.id != token.id:
+        flash(
+            "Cannot serve out of order. Please serve the first person in line for this service.",
+            "error"
+        )
+        return redirect(url_for("admin_dashboard"))
+
     currently_serving = Token.query.filter(
         Token.service_id == token.service_id,
         Token.status == "serving"
@@ -599,19 +705,27 @@ def initialize_database():
     db.create_all()
 
     # Create admin account if it doesn't exist.
+    admin_email = os.environ.get(
+        "ADMIN_EMAIL",
+        "admin@smartqueueless.com"
+    )
+
+    admin_password = os.environ.get(
+        "ADMIN_PASSWORD",
+        "Admin@123"
+    )
+
     admin = User.query.filter_by(
-        email="admin@smartqueueless.com"
+        email=admin_email
     ).first()
 
     if not admin:
-
         admin = User(
             name="System Administrator",
-            email="admin@smartqueueless.com",
-            password=generate_password_hash("Admin@123"),
+            email=admin_email,
+            password=generate_password_hash(admin_password),
             role="admin"
         )
-
         db.session.add(admin)
 
     # Create initial services.
@@ -656,11 +770,11 @@ def initialize_database():
 with app.app_context():
     initialize_database()
 
-
 if __name__ == "__main__":
+    port=int(os.environ.get("PORT", 5000))
     app.run(
-        debug=True,
-        host="127.0.0.1",
-        port=5000
+        debug=False,
+        host="0.0.0.0",
+        port=port
     )
-    )
+    port = in
