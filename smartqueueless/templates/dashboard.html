@@ -1,65 +1,85 @@
 {% extends "base.html" %}
 
 {% block title %}
-Dashboard | SmartQueueLess
+My Dashboard | SmartQueueLess
 {% endblock %}
 
 {% block content %}
 
-<section class="dashboard">
+<section class="user-dashboard">
 
-    <div class="dashboard-header">
+    <!-- Dashboard Header -->
+    <div class="user-dashboard-header">
 
         <div>
-
             <span class="section-label">
-                USER DASHBOARD
+                SMARTQUEUELESS
             </span>
 
             <h1>
-                Hello, {{ current_user.name }}
+                Welcome, {{ current_user.name }}
             </h1>
 
             <p>
-                Choose a service and join a digital queue.
+                Manage your queue tokens and check your waiting time in real time.
             </p>
+        </div>
 
+        <div class="dashboard-live-badge">
+            <span></span>
+            Queue System Online
         </div>
 
     </div>
 
 
-    <div class="dashboard-section">
+    <!-- Join Queue -->
+    <div class="join-queue-panel">
 
-        <h2>
-            Join a Queue
-        </h2>
+        <div class="join-queue-content">
+
+            <div>
+                <span class="panel-label">
+                    NEED A TOKEN?
+                </span>
+
+                <h2>
+                    Join a Queue
+                </h2>
+
+                <p>
+                    Select a service and get your digital token without waiting in a physical line.
+                </p>
+            </div>
+
+        </div>
 
 
-        <div class="service-grid">
+        <div class="user-service-grid">
 
             {% for service in services %}
 
-            <div class="service-card">
+            <div class="user-service-card">
 
-                <div class="service-icon">
+                <div class="user-service-icon">
                     {{ service.prefix }}
                 </div>
 
-                <h3>
-                    {{ service.name }}
-                </h3>
+                <div class="user-service-details">
 
-                <p>
-                    {{ service.location }}
-                </p>
+                    <h3>
+                        {{ service.name }}
+                    </h3>
 
-                <div class="service-time">
-                    Average service:
-                    {{ service.average_service_time|round|int }}
-                    min
+                    <p>
+                        {{ service.location }}
+                    </p>
+
+                    <span>
+                        Approx. {{ service.average_service_time|int }} min/service
+                    </span>
+
                 </div>
-
 
                 <form
                     method="POST"
@@ -68,13 +88,20 @@ Dashboard | SmartQueueLess
 
                     <button
                         type="submit"
-                        class="service-button"
+                        class="join-button"
                     >
-                        Get Digital Token
+                        Get Token
                     </button>
 
                 </form>
 
+            </div>
+
+            {% else %}
+
+            <div class="no-services">
+                <strong>No services available</strong>
+                <p>Please check again later.</p>
             </div>
 
             {% endfor %}
@@ -84,98 +111,115 @@ Dashboard | SmartQueueLess
     </div>
 
 
-    <div class="dashboard-section">
+    <!-- My Tokens -->
+    <div class="my-tokens-section">
 
-        <h2>
-            My Queue History
-        </h2>
+        <div class="dashboard-section-heading">
+
+            <div>
+                <span class="panel-label">
+                    YOUR QUEUE ACTIVITY
+                </span>
+
+                <h2>
+                    My Tokens
+                </h2>
+            </div>
+
+            <span class="token-count">
+                {{ tokens|length }} token{% if tokens|length != 1 %}s{% endif %}
+            </span>
+
+        </div>
 
 
         {% if tokens %}
 
-        <div class="table-wrapper">
+        <div class="user-token-list">
 
-            <table>
+            {% for token in tokens %}
 
-                <thead>
+            <div class="user-token-card">
 
-                    <tr>
-                        <th>Token</th>
-                        <th>Service</th>
-                        <th>Status</th>
-                        <th>Date</th>
-                        <th>Action</th>
-                    </tr>
+                <div class="token-main">
 
-                </thead>
+                    <div class="large-token">
+                        {{ token.token_code }}
+                    </div>
 
-                <tbody>
+                    <div class="token-service">
 
-                    {% for token in tokens %}
-
-                    <tr>
-
-                        <td>
-                            <strong>
-                                {{ token.token_code }}
-                            </strong>
-                        </td>
-
-                        <td>
+                        <h3>
                             {{ token.service.name }}
-                        </td>
+                        </h3>
 
-                        <td>
-                            <span class="status {{ token.status }}">
-                                {{ token.status|capitalize }}
-                            </span>
-                        </td>
+                        <p>
+                            {{ token.service.location }}
+                        </p>
 
-                        <td>
-                            {{ token.created_at.strftime("%d %b %Y, %I:%M %p") }}
-                        </td>
+                    </div>
 
-                        <td>
+                </div>
 
-                            {% if token.status in ["waiting", "serving"] %}
 
-                            <a
-                                href="{{ url_for('queue_status', token_id=token.id) }}"
-                                class="small-button"
-                            >
-                                Track Queue
-                            </a>
+                <div class="token-status-area">
 
-                            {% else %}
+                    {% if token.status == "waiting" %}
 
-                            <span class="completed-text">
-                                Completed
-                            </span>
+                        <span class="status waiting">
+                            Waiting
+                        </span>
 
-                            {% endif %}
+                        <a
+                            href="{{ url_for('queue_status', token_id=token.id) }}"
+                            class="view-queue-button"
+                        >
+                            View Live Queue
+                        </a>
 
-                        </td>
+                    {% elif token.status == "serving" %}
 
-                    </tr>
+                        <span class="status serving">
+                            Now Serving
+                        </span>
 
-                    {% endfor %}
+                        <a
+                            href="{{ url_for('queue_status', token_id=token.id) }}"
+                            class="view-queue-button serving-link"
+                        >
+                            View Queue
+                        </a>
 
-                </tbody>
+                    {% else %}
 
-            </table>
+                        <span class="status completed">
+                            Completed
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            {% endfor %}
 
         </div>
 
         {% else %}
 
-        <div class="empty-state">
+        <div class="empty-token-state">
+
+            <div class="empty-token-icon">
+                +
+            </div>
 
             <h3>
-                No queue history yet
+                No queue tokens yet
             </h3>
 
             <p>
-                Join a service above to receive your first digital token.
+                Choose a service above to get your first digital token.
             </p>
 
         </div>
@@ -184,19 +228,74 @@ Dashboard | SmartQueueLess
 
     </div>
 
+
+    <!-- How It Works -->
+    <div class="dashboard-how-it-works">
+
+        <div class="dashboard-section-heading">
+
+            <div>
+                <span class="panel-label">
+                    SIMPLE PROCESS
+                </span>
+
+                <h2>
+                    How SmartQueueLess Works
+                </h2>
+            </div>
+
+        </div>
+
+
+        <div class="dashboard-steps">
+
+            <div class="dashboard-step">
+
+                <div class="dashboard-step-number">
+                    01
+                </div>
+
+                <div>
+                    <h3>Choose a Service</h3>
+                    <p>Select the hospital, bank, college or service center you need.</p>
+                </div>
+
+            </div>
+
+
+            <div class="dashboard-step">
+
+                <div class="dashboard-step-number">
+                    02
+                </div>
+
+                <div>
+                    <h3>Get Your Token</h3>
+                    <p>Receive a digital token instead of standing in a physical queue.</p>
+                </div>
+
+            </div>
+
+
+            <div class="dashboard-step">
+
+                <div class="dashboard-step-number">
+                    03
+                </div>
+
+                <div>
+                    <h3>Track Your Position</h3>
+                    <p>Check people ahead of you and the estimated waiting time.</p>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </section>
 
-<!-- ============================================================ -->
-<!-- REAL-TIME SOCKET.IO LISTENER (STEP 2 LIVE UPDATES) -->
-<!-- ============================================================ -->
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<script>
-    const socket = io();
-
-    // Reload user dashboard automatically when admin or system updates any queue status
-    socket.on('queue_updated', function(data) {
-        window.location.reload();
-    });
-</script>
+{% endblock %}
 
 {% endblock %}
