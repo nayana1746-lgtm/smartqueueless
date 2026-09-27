@@ -1,585 +1,216 @@
 {% extends "base.html" %}
 
 {% block title %}
-Admin Control Center | SmartQueueLess
+Admin Dashboard | SmartQueueLess
 {% endblock %}
 
 {% block content %}
 
-<section class="dashboard admin-dashboard"><!-- ========================================================= -->
-<!-- HEADER -->
-<!-- ========================================================= -->
+<section class="dashboard">
 
-<div class="dashboard-header admin-header">
-
-    <div>
-        <span class="section-label">
-            SMARTQUEUELESS
-        </span>
-
-        <h1>
-            Admin Control Center
-        </h1>
-
-        <p>
-            Monitor queues, manage services and control token flow.
-        </p>
-    </div>
-
-    <div class="admin-live">
-        <span class="live-dot"></span>
-        Live Queue Monitor
-    </div>
-
-</div>
-
-
-<!-- ========================================================= -->
-<!-- STATISTICS -->
-<!-- ========================================================= -->
-
-<div class="admin-stats">
-
-    <div class="admin-stat stat-waiting">
-        <div class="stat-icon">⏳</div>
+    <div class="dashboard-header">
 
         <div>
-            <span>Waiting</span>
-            <strong>{{ waiting_count }}</strong>
-            <small>People in queue</small>
-        </div>
-    </div>
 
-
-    <div class="admin-stat stat-serving">
-        <div class="stat-icon">▶</div>
-
-        <div>
-            <span>Serving</span>
-            <strong>{{ serving_count }}</strong>
-            <small>Currently being served</small>
-        </div>
-    </div>
-
-
-    <div class="admin-stat stat-completed">
-        <div class="stat-icon">✓</div>
-
-        <div>
-            <span>Completed</span>
-            <strong>{{ completed_count }}</strong>
-            <small>Completed tokens</small>
-        </div>
-    </div>
-
-
-    <div class="admin-stat stat-services">
-        <div class="stat-icon">▣</div>
-
-        <div>
-            <span>Services</span>
-            <strong>{{ services|length }}</strong>
-            <small>Available services</small>
-        </div>
-    </div>
-
-</div>
-
-
-<!-- ========================================================= -->
-<!-- CREATE SERVICE -->
-<!-- ========================================================= -->
-
-<div class="dashboard-section service-management">
-
-    <div class="section-heading">
-
-        <div>
             <span class="section-label">
-                SERVICE MANAGEMENT
+                ADMIN CONTROL CENTER
             </span>
 
-            <h2>
-                Create New Service
-            </h2>
+            <h1>
+                Queue Management
+            </h1>
 
             <p>
-                Add a queue service with its location and estimated service time.
+                Monitor services, tokens and queue activity.
             </p>
+
         </div>
 
     </div>
 
 
-    <form
-        method="POST"
-        action="{{ url_for('create_service') }}"
-        class="service-form"
-    >
+    <div class="admin-stats">
 
-        <div class="form-group">
+        <div class="admin-stat">
+            <span>Waiting</span>
+            <strong>{{ waiting_count }}</strong>
+        </div>
 
-            <label for="service-name">
-                Service Name
-            </label>
+        <div class="admin-stat">
+            <span>Serving</span>
+            <strong>{{ serving_count }}</strong>
+        </div>
+
+        <div class="admin-stat">
+            <span>Completed</span>
+            <strong>{{ completed_count }}</strong>
+        </div>
+
+    </div>
+
+
+    <div class="dashboard-section">
+
+        <h2>
+            Create Service
+        </h2>
+
+        <form
+            method="POST"
+            action="{{ url_for('create_service') }}"
+            class="service-form"
+        >
 
             <input
-                id="service-name"
                 type="text"
                 name="name"
-                placeholder="Example: Hospital Registration"
+                placeholder="Service name"
                 required
             >
 
-        </div>
-
-
-        <div class="form-group">
-
-            <label for="service-location">
-                Location
-            </label>
-
             <input
-                id="service-location"
                 type="text"
                 name="location"
-                placeholder="Example: Main Branch"
+                placeholder="Location"
                 required
             >
 
-        </div>
-
-
-        <div class="form-group prefix-field">
-
-            <label for="service-prefix">
-                Token Prefix
-            </label>
-
             <input
-                id="service-prefix"
                 type="text"
                 name="prefix"
-                placeholder="H"
+                placeholder="Prefix"
                 maxlength="5"
                 required
             >
 
-        </div>
-
-
-        <div class="form-group">
-
-            <label for="service-time">
-                Average Time (minutes)
-            </label>
-
             <input
-                id="service-time"
                 type="number"
                 name="average_service_time"
-                placeholder="5"
+                placeholder="Average minutes"
                 min="1"
                 value="5"
                 required
             >
 
-        </div>
-
-
-        <div class="form-action">
-
             <button
                 type="submit"
                 class="primary-button"
             >
-                + Create Service
+                Create Service
             </button>
 
-        </div>
-
-    </form>
-
-</div>
-
-
-<!-- ========================================================= -->
-<!-- ACTIVE SERVICES -->
-<!-- ========================================================= -->
-
-<div class="dashboard-section">
-
-    <div class="section-heading">
-
-        <div>
-
-            <span class="section-label">
-                SERVICES
-            </span>
-
-            <h2>
-                Active Queue Services
-            </h2>
-
-        </div>
+        </form>
 
     </div>
 
 
-    <div class="service-grid">
+    <div class="dashboard-section">
 
-        {% for service in services %}
-
-        <div class="service-card">
-
-            <div class="service-card-top">
-
-                <div class="service-icon">
-                    {{ service.prefix }}
-                </div>
-
-                <span class="service-status">
-                    Active
-                </span>
-
-            </div>
+        <h2>
+            Queue Tokens
+        </h2>
 
 
-            <h3>
-                {{ service.name }}
-            </h3>
+        <div class="table-wrapper">
 
+            <table>
 
-            <p class="service-location">
-                📍 {{ service.location }}
-            </p>
+                <thead>
 
+                    <tr>
+                        <th>Token</th>
+                        <th>User</th>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
 
-            <div class="service-info">
+                </thead>
 
-                <div>
-                    <span>Prefix</span>
-                    <strong>{{ service.prefix }}</strong>
-                </div>
+                <tbody>
 
-                <div>
-                    <span>Avg. Time</span>
-                    <strong>{{ service.average_service_time|int }} min</strong>
-                </div>
+                    {% for token in tokens %}
 
-            </div>
+                    <tr>
 
-        </div>
-
-        {% else %}
-
-        <div class="empty-services">
-            No services have been created yet.
-        </div>
-
-        {% endfor %}
-
-    </div>
-
-</div>
-
-
-<!-- ========================================================= -->
-<!-- QUEUE TOKENS -->
-<!-- ========================================================= -->
-
-<div class="dashboard-section queue-management">
-
-    <div class="section-heading queue-heading">
-
-        <div>
-
-            <span class="section-label">
-                QUEUE MANAGEMENT
-            </span>
-
-            <h2>
-                Current Queue
-            </h2>
-
-            <p>
-                Manage tokens according to the first-in-first-out queue order.
-            </p>
-
-        </div>
-
-        <div class="queue-count">
-            {{ tokens|length }} tokens
-        </div>
-
-    </div>
-
-
-    <div class="table-wrapper">
-
-        <table class="admin-table">
-
-            <thead>
-
-                <tr>
-                    <th>Token</th>
-                    <th>Customer</th>
-                    <th>Service</th>
-                    <th>Created</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                </tr>
-
-            </thead>
-
-
-            <tbody>
-
-                {% for token in tokens %}
-
-                <tr>
-
-                    <!-- TOKEN -->
-
-                    <td>
-
-                        <div class="token-display">
-
+                        <td>
                             <strong>
                                 {{ token.token_code }}
                             </strong>
+                        </td>
 
-                            <span>
-                                #{{ token.token_number }}
-                            </span>
+                        <td>
+                            {{ token.user.name }}
+                        </td>
 
-                        </div>
-
-                    </td>
-
-
-                    <!-- USER -->
-
-                    <td>
-
-                        <div class="customer-info">
-
-                            <strong>
-                                {{ token.user.name }}
-                            </strong>
-
-                            <small>
-                                {{ token.user.email }}
-                            </small>
-
-                        </div>
-
-                    </td>
-
-
-                    <!-- SERVICE -->
-
-                    <td>
-
-                        <div class="service-name-cell">
-
-                            <span class="mini-prefix">
-                                {{ token.service.prefix }}
-                            </span>
-
+                        <td>
                             {{ token.service.name }}
+                        </td>
 
-                        </div>
+                        <td>
+                            <span class="status {{ token.status }}">
+                                {{ token.status|capitalize }}
+                            </span>
+                        </td>
 
-                    </td>
-
-
-                    <!-- CREATED -->
-
-                    <td>
-
-                        <span class="date-text">
-
-                            {{ token.created_at.strftime('%d %b %Y') }}
-
-                            <br>
-
-                            <small>
-                                {{ token.created_at.strftime('%I:%M %p') }}
-                            </small>
-
-                        </span>
-
-                    </td>
-
-
-                    <!-- STATUS -->
-
-                    <td>
-
-                        <span class="status status-{{ token.status }}">
+                        <td>
 
                             {% if token.status == "waiting" %}
-                                Waiting
-                            {% elif token.status == "serving" %}
-                                Serving
-                            {% elif token.status == "completed" %}
-                                Completed
-                            {% else %}
-                                {{ token.status|capitalize }}
-                            {% endif %}
-
-                        </span>
-
-                    </td>
-
-
-                    <!-- ACTION -->
-
-                    <td>
-
-                        {% if token.status == "waiting" %}
-
-                            {% if token.id in next_token_ids %}
 
                             <form
                                 method="POST"
                                 action="{{ url_for('serve_token', token_id=token.id) }}"
                                 class="inline-form"
                             >
-
-                                <button
-                                    type="submit"
-                                    class="small-button serve-button"
-                                >
-                                    ▶ Serve
+                                <button class="small-button">
+                                    Serve
                                 </button>
-
                             </form>
 
-                            {% else %}
-
-                            <button
-                                type="button"
-                                class="small-button disabled-button"
-                                disabled
-                                title="Serve earlier tokens first"
-                            >
-                                In Queue
-                            </button>
-
-                            {% endif %}
-
-
-                        {% elif token.status == "serving" %}
+                            {% elif token.status == "serving" %}
 
                             <form
                                 method="POST"
                                 action="{{ url_for('complete_token', token_id=token.id) }}"
                                 class="inline-form"
                             >
-
-                                <button
-                                    type="submit"
-                                    class="small-button complete-button"
-                                >
-                                    ✓ Complete
+                                <button class="small-button">
+                                    Complete
                                 </button>
-
                             </form>
 
-
-                        {% else %}
+                            {% else %}
 
                             <span class="completed-text">
-                                ✓ Finished
+                                Finished
                             </span>
 
-                        {% endif %}
+                            {% endif %}
 
-                    </td>
+                        </td>
 
-                </tr>
+                    </tr>
 
+                    {% else %}
 
-                {% else %}
+                    <tr>
 
-                <tr>
+                        <td colspan="5">
+                            No tokens have been generated yet.
+                        </td>
 
-                    <td
-                        colspan="6"
-                        class="empty-table"
-                    >
+                    </tr>
 
-                        <div class="empty-icon">
-                            ⏱
-                        </div>
+                    {% endfor %}
 
-                        <strong>
-                            No queue tokens yet
-                        </strong>
+                </tbody>
 
-                        <span>
-                            Tokens will appear here when customers join a queue.
-                        </span>
+            </table>
 
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-            </tbody>
-
-        </table>
+        </div>
 
     </div>
 
-</div>
+</section>
 
-</section><!-- ============================================================ --><!-- SOCKET.IO + VOICE ANNOUNCEMENT --><!-- ============================================================ --><script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script><script>
-
-    const socket = io();
-
-
-    socket.on("queue_updated", function(data) {
-
-        if (
-            data &&
-            data.status === "serving" &&
-            data.token_code
-        ) {
-
-            const spokenCode =
-                data.token_code
-                .split("")
-                .join(" ");
-
-
-            const announcement =
-                new SpeechSynthesisUtterance(
-                    `Token ${spokenCode} is now being served.`
-                );
-
-
-            announcement.rate = 0.9;
-            announcement.pitch = 1.0;
-
-
-            window.speechSynthesis.speak(
-                announcement
-            );
-
-        }
-
-
-        setTimeout(function() {
-
-            window.location.reload();
-
-        }, 1000);
-
-    });
-
-</script>{% endblock %}
+{% endblock %}
