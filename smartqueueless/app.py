@@ -18,7 +18,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 
-app.config["SECRET_KEY"] = "smartqueueless-production-key"
+import os
+
+app.config["SECRET_KEY"] = os.environ.get(
+    "SECRET_KEY",
+    "dev-secret-key-change-this"
+)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///smartqueueless.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
@@ -289,12 +294,12 @@ def register():
             flash("All fields are required.", "error")
             return redirect(url_for("register"))
 
-        if len(password) < 6:
-            flash(
-                "Password must contain at least 6 characters.",
-                "error"
-            )
-            return redirect(url_for("register"))
+      if len(password) < 8:
+    flash(
+        "Password must contain at least 8 characters.",
+        "error"
+    )
+    return redirect(url_for("register"))
 
         existing_user = User.query.filter_by(
             email=email
@@ -467,8 +472,7 @@ def join_queue(service_id):
 # ============================================================
 # QUEUE STATUS
 # ============================================================
-
-@app.route("/queue/<int:token_id>")
+\@app.route("/queue/<int:token_id>")
 @login_required
 def queue_status(token_id):
 
@@ -478,38 +482,19 @@ def queue_status(token_id):
         flash("Token not found.", "error")
         return redirect(url_for("dashboard"))
 
-    # Only the token owner or an admin can view the queue
-    if (
-        token.user_id != current_user.id
-        and current_user.role != "admin"
-    ):
+    # Only token owner or admin can view the queue
+    if token.user_id != current_user.id and current_user.role != "admin":
         flash("Unauthorized access.", "error")
         return redirect(url_for("dashboard"))
 
-    # ---------------------------------------------------------
-    # Count people ahead
-    # ---------------------------------------------------------
+    # People waiting before this token
+    people_ahead = Token.query.filter(
+        Token.service_id == token.service_id,
+        Token.status == "waiting",
+        Token.token_number < token.token_number
+    ).count()
 
-    if token.status == "waiting":
-
-        people_ahead = Token.query.filter(
-            Token.service_id == token.service_id,
-            Token.status == "waiting",
-            Token.token_number < token.token_number
-        ).count()
-
-    elif token.status == "serving":
-
-        people_ahead = 0
-
-    else:
-
-        people_ahead = 0
-
-    # ---------------------------------------------------------
     # Find currently serving token
-    # ---------------------------------------------------------
-
     current_serving = Token.query.filter_by(
         service_id=token.service_id,
         status="serving"
@@ -517,37 +502,29 @@ def queue_status(token_id):
         Token.called_at.asc()
     ).first()
 
-    # ---------------------------------------------------------
-    # Calculate waiting-time prediction
-    # ---------------------------------------------------------
-
+    # Queue position
     if token.status == "waiting":
+        queue_position = people_ahead + 1
+    else:
+        queue_position = 0
 
+    # Waiting-time prediction
+    if token.status == "waiting":
         waiting_time = predict_waiting_time(
             token.service_id,
             token.id
         )
-
-    elif token.status == "serving":
-
-        waiting_time = 0
-
     else:
-
         waiting_time = 0
-
-    # ---------------------------------------------------------
-    # Render queue page
-    # ---------------------------------------------------------
 
     return render_template(
         "queue.html",
         token=token,
         people_ahead=people_ahead,
+        queue_position=queue_position,
         waiting_time=waiting_time,
         current_serving=current_serving
     )
-
 # ============================================================
 # ADMIN DASHBOARD
 # ============================================================
@@ -733,18 +710,29 @@ def initialize_database():
     db.create_all()
 
     # Create admin account if it doesn't exist.
-    admin = User.query.filter_by(
-        email="admin@smartqueueless.com"
-    ).first()
+  admin_email = os.environ.get(
+    "ADMIN_EMAIL",
+    "admin@smartqueueless.com"
+)
 
-    if not admin:
+admin_password = os.environ.get(
+    "ADMIN_PASSWORD",
+    "Admin@123"
+)
 
-        admin = User(
-            name="System Administrator",
-            email="admin@smartqueueless.com",
-            password=generate_password_hash("Admin@123"),
-            role="admin"
-        )
+admin = User.query.filter_by(
+    email=admin_email
+).first()
+
+if not admin:
+    admin = User(
+        name="System Administrator",
+        email=admin_email,
+        password=generate_password_hash(admin_password),
+        role="admin"
+    )
+    db.session.add(admin)
+    
 
         db.session.add(admin)
 
@@ -789,11 +777,9 @@ def initialize_database():
 
 with app.app_context():
     initialize_database()
-
-
 if __name__ == "__main__":
     app.run(
-        debug=True,
+        debug=False,
         host="127.0.0.1",
         port=5000
     )
