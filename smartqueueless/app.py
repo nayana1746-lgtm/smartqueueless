@@ -1,5 +1,6 @@
 from datetime import datetime
 from functools import wraps
+import os
 
 import numpy as np
 from flask import Flask, flash, redirect, render_template, request, url_for
@@ -17,8 +18,6 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 
 app = Flask(__name__)
-
-import os
 
 app.config["SECRET_KEY"] = os.environ.get(
     "SECRET_KEY",
@@ -167,13 +166,11 @@ def predict_waiting_time(service_id, token_id=None):
     historical_data = []
 
     for token in historical_tokens:
-
         duration = (
             token.completed_at - token.called_at
         ).total_seconds() / 60
 
         if duration > 0:
-
             historical_data.append({
                 "token_number": token.token_number,
                 "hour": token.called_at.hour,
@@ -185,18 +182,14 @@ def predict_waiting_time(service_id, token_id=None):
     # ---------------------------------------------------------
 
     if len(historical_data) >= 5:
-
         X = []
-
         y = []
 
         for item in historical_data:
-
             X.append([
                 item["token_number"],
                 item["hour"]
             ])
-
             y.append(item["duration"])
 
         model = LinearRegression()
@@ -226,7 +219,6 @@ def predict_waiting_time(service_id, token_id=None):
         )
 
     else:
-
         # Not enough historical data yet
         predicted_service_time = (
             service.average_service_time or 5
@@ -294,12 +286,12 @@ def register():
             flash("All fields are required.", "error")
             return redirect(url_for("register"))
 
-      if len(password) < 8:
-    flash(
-        "Password must contain at least 8 characters.",
-        "error"
-    )
-    return redirect(url_for("register"))
+        if len(password) < 8:
+            flash(
+                "Password must contain at least 8 characters.",
+                "error"
+            )
+            return redirect(url_for("register"))
 
         existing_user = User.query.filter_by(
             email=email
@@ -472,7 +464,8 @@ def join_queue(service_id):
 # ============================================================
 # QUEUE STATUS
 # ============================================================
-\@app.route("/queue/<int:token_id>")
+
+@app.route("/queue/<int:token_id>")
 @login_required
 def queue_status(token_id):
 
@@ -525,6 +518,8 @@ def queue_status(token_id):
         waiting_time=waiting_time,
         current_serving=current_serving
     )
+
+
 # ============================================================
 # ADMIN DASHBOARD
 # ============================================================
@@ -710,30 +705,27 @@ def initialize_database():
     db.create_all()
 
     # Create admin account if it doesn't exist.
-  admin_email = os.environ.get(
-    "ADMIN_EMAIL",
-    "admin@smartqueueless.com"
-)
-
-admin_password = os.environ.get(
-    "ADMIN_PASSWORD",
-    "Admin@123"
-)
-
-admin = User.query.filter_by(
-    email=admin_email
-).first()
-
-if not admin:
-    admin = User(
-        name="System Administrator",
-        email=admin_email,
-        password=generate_password_hash(admin_password),
-        role="admin"
+    admin_email = os.environ.get(
+        "ADMIN_EMAIL",
+        "admin@smartqueueless.com"
     )
-    db.session.add(admin)
-    
 
+    admin_password = os.environ.get(
+        "ADMIN_PASSWORD",
+        "Admin@123"
+    )
+
+    admin = User.query.filter_by(
+        email=admin_email
+    ).first()
+
+    if not admin:
+        admin = User(
+            name="System Administrator",
+            email=admin_email,
+            password=generate_password_hash(admin_password),
+            role="admin"
+        )
         db.session.add(admin)
 
     # Create initial services.
@@ -777,9 +769,12 @@ if not admin:
 
 with app.app_context():
     initialize_database()
+
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
     app.run(
         debug=False,
-        host="127.0.0.1",
-        port=5000
+        host="0.0.0.0",
+        port=port
     )
+
